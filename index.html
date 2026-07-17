@@ -14,6 +14,9 @@
   <!-- FontAwesome for Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
+  <!-- GIF Encoding Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
+  
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -76,12 +79,30 @@
           <div class="panel-card gif-preview-card">
             <div class="card-header">
               <span class="card-title"><i class="fa-solid fa-image icon-prefix"></i>Original GIF</span>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-change-file">
-                <i class="fa-solid fa-arrow-left btn-icon"></i>Change File
-              </button>
+              <div class="header-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-change-file" style="margin-right: 0.5rem;">
+                  <i class="fa-solid fa-arrow-left btn-icon"></i>Choose Another File
+                </button>
+                <button type="button" class="btn btn-success btn-sm" id="btn-download-top" disabled>
+                  <i class="fa-solid fa-download btn-icon"></i>Download
+                </button>
+              </div>
             </div>
             <div class="gif-display-area">
-              <img id="gif-preview" src="" alt="GIF Preview">
+              <div class="gif-wrapper" id="gif-wrapper" style="position: relative; display: inline-block;">
+                <img id="gif-preview" src="" alt="GIF Preview">
+                
+                <!-- Visual Crop Overlay -->
+                <div id="crop-overlay" class="crop-overlay-hidden">
+                  <div id="crop-box" class="crop-box">
+                    <div class="crop-handle handle-tl" data-handle="tl"></div>
+                    <div class="crop-handle handle-tr" data-handle="tr"></div>
+                    <div class="crop-handle handle-bl" data-handle="bl"></div>
+                    <div class="crop-handle handle-br" data-handle="br"></div>
+                    <div class="crop-box-size-label" id="crop-box-size">0 x 0</div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="gif-meta-info" id="gif-metadata">
               <div class="meta-item">
@@ -103,13 +124,46 @@
         <!-- Right Panel: Edit Settings -->
         <div class="editor-right-panel">
           <div class="panel-card settings-card">
-            <div class="card-header border-bottom">
-              <span class="card-title"><i class="fa-solid fa-sliders icon-prefix"></i>Edit Controls</span>
+            
+            <!-- Tools Navigation Grid (8 buttons with icons) -->
+            <div class="editor-tools-grid">
+              <button type="button" class="tool-tab-btn active" data-target="panel-resize">
+                <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+                <span>Resize</span>
+              </button>
+              <button type="button" class="tool-tab-btn" data-target="panel-crop">
+                <i class="fa-solid fa-crop-simple"></i>
+                <span>Crop</span>
+              </button>
+              <button type="button" class="tool-tab-btn" data-target="panel-downsize">
+                <i class="fa-solid fa-compress"></i>
+                <span>Downsize</span>
+              </button>
+              <button type="button" class="tool-tab-btn" data-target="panel-convert">
+                <i class="fa-solid fa-file-export"></i>
+                <span>Convert</span>
+              </button>
+              <button type="button" class="tool-tab-btn" data-target="panel-rotate">
+                <i class="fa-solid fa-rotate-right"></i>
+                <span>Rotate</span>
+              </button>
+              <button type="button" class="tool-tab-btn" data-target="panel-optimize">
+                <i class="fa-solid fa-bolt"></i>
+                <span>Optimize</span>
+              </button>
+              <button type="button" class="tool-tab-btn" data-target="panel-reverse">
+                <i class="fa-solid fa-backward"></i>
+                <span>Reverse</span>
+              </button>
+              <button type="button" class="tool-tab-btn" data-target="panel-speed">
+                <i class="fa-solid fa-scissors"></i>
+                <span>Speed cut</span>
+              </button>
             </div>
             
             <div class="settings-content">
-              <!-- Resize Section -->
-              <div class="setting-group">
+              <!-- 1. Resize Panel -->
+              <div id="panel-resize" class="tool-panel active">
                 <h4 class="group-title"><i class="fa-solid fa-up-right-and-down-left-from-center icon-prefix"></i>Resize GIF</h4>
                 <div class="input-grid">
                   <div class="input-field">
@@ -125,24 +179,15 @@
                   <input type="checkbox" id="keep-aspect-ratio" checked>
                   <label for="keep-aspect-ratio">Lock aspect ratio</label>
                 </div>
+                <button type="button" class="btn btn-primary btn-full mt-3" id="btn-apply-resize">
+                  <i class="fa-solid fa-check btn-icon"></i>Apply Resize
+                </button>
               </div>
 
-              <!-- Downscale Section -->
-              <div class="setting-group">
-                <h4 class="group-title"><i class="fa-solid fa-compress icon-prefix"></i>Downscale (Scale Quality)</h4>
-                <div class="range-slider-wrapper">
-                  <input type="range" id="scale-slider" min="10" max="100" value="100" step="5" class="slider">
-                  <div class="slider-labels">
-                    <span>10%</span>
-                    <span class="slider-current-val" id="scale-val">100%</span>
-                    <span>100%</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Crop Section -->
-              <div class="setting-group">
-                <h4 class="group-title"><i class="fa-solid fa-crop-simple icon-prefix"></i>Crop Area</h4>
+              <!-- 2. Crop Panel -->
+              <div id="panel-crop" class="tool-panel">
+                <h4 class="group-title"><i class="fa-solid fa-crop-simple icon-prefix"></i>Crop GIF</h4>
+                <p class="tool-instruction">Drag and resize the crop box on the GIF preview visually, or enter custom coordinates below:</p>
                 <div class="input-grid grid-4-col">
                   <div class="input-field">
                     <label for="crop-x">X</label>
@@ -154,21 +199,78 @@
                   </div>
                   <div class="input-field">
                     <label for="crop-w">Width</label>
-                    <input type="number" id="crop-w" min="1" placeholder="W">
+                    <input type="number" id="crop-w" min="1">
                   </div>
                   <div class="input-field">
                     <label for="crop-h">Height</label>
-                    <input type="number" id="crop-h" min="1" placeholder="H">
+                    <input type="number" id="crop-h" min="1">
                   </div>
                 </div>
-                <button type="button" class="btn btn-outline btn-sm mt-2" id="btn-crop-enable">
-                  <i class="fa-solid fa-crop btn-icon"></i>Visual Crop Tool
+                <button type="button" class="btn btn-primary btn-full mt-3" id="btn-apply-crop">
+                  <i class="fa-solid fa-crop btn-icon"></i>Apply Crop
                 </button>
               </div>
 
-              <!-- FPS Speed Adjustment -->
-              <div class="setting-group">
-                <h4 class="group-title"><i class="fa-solid fa-gauge-high icon-prefix"></i>FPS & Playback Speed</h4>
+              <!-- 3. Downsize Panel (Placeholder) -->
+              <div id="panel-downsize" class="tool-panel">
+                <h4 class="group-title"><i class="fa-solid fa-compress icon-prefix"></i>Downsize</h4>
+                <p class="tool-placeholder-text">Reduce file size by compressing colors and quantization.</p>
+                <div class="range-slider-wrapper">
+                  <input type="range" id="scale-slider" min="10" max="100" value="100" step="5" class="slider">
+                  <div class="slider-labels">
+                    <span>10%</span>
+                    <span class="slider-current-val" id="scale-val">100%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-outline btn-full mt-3" disabled>Apply Downsize (Next Phase)</button>
+              </div>
+
+              <!-- 4. Convert Panel (Placeholder) -->
+              <div id="panel-convert" class="tool-panel">
+                <h4 class="group-title"><i class="fa-solid fa-file-export icon-prefix"></i>Format Convert</h4>
+                <p class="tool-placeholder-text">Convert GIF to MP4, WebM, or WebP format.</p>
+                <div class="select-field">
+                  <label for="convert-format">Target Format</label>
+                  <select id="convert-format" class="app-select">
+                    <option value="mp4">MP4 Video</option>
+                    <option value="webm">WebM Video</option>
+                    <option value="webp">Animated WebP</option>
+                  </select>
+                </div>
+                <button type="button" class="btn btn-outline btn-full mt-3" disabled>Apply Convert (Next Phase)</button>
+              </div>
+
+              <!-- 5. Rotate Panel (Placeholder) -->
+              <div id="panel-rotate" class="tool-panel">
+                <h4 class="group-title"><i class="fa-solid fa-rotate-right icon-prefix"></i>Rotate GIF</h4>
+                <p class="tool-placeholder-text">Rotate the GIF clockwise or flip it.</p>
+                <div class="btn-group-row">
+                  <button class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> -90°</button>
+                  <button class="btn btn-secondary"><i class="fa-solid fa-rotate-right"></i> +90°</button>
+                  <button class="btn btn-secondary"><i class="fa-solid fa-left-right"></i> Flip H</button>
+                </div>
+                <button type="button" class="btn btn-outline btn-full mt-3" disabled>Apply Rotate (Next Phase)</button>
+              </div>
+
+              <!-- 6. Optimize Panel (Placeholder) -->
+              <div id="panel-optimize" class="tool-panel">
+                <h4 class="group-title"><i class="fa-solid fa-bolt icon-prefix"></i>Optimize GIF</h4>
+                <p class="tool-placeholder-text">Remove redundant frames, optimize color palettes, and shrink storage size.</p>
+                <button type="button" class="btn btn-outline btn-full mt-3" disabled>Apply Optimization (Next Phase)</button>
+              </div>
+
+              <!-- 7. Reverse Panel (Placeholder) -->
+              <div id="panel-reverse" class="tool-panel">
+                <h4 class="group-title"><i class="fa-solid fa-backward icon-prefix"></i>Reverse Playback</h4>
+                <p class="tool-placeholder-text">Make the animated GIF play in reverse order (backward).</p>
+                <button type="button" class="btn btn-outline btn-full mt-3" disabled>Apply Reverse (Next Phase)</button>
+              </div>
+
+              <!-- 8. Speed Panel (Placeholder) -->
+              <div id="panel-speed" class="tool-panel">
+                <h4 class="group-title"><i class="fa-solid fa-scissors icon-prefix"></i>Speed Cut</h4>
+                <p class="tool-placeholder-text">Adjust FPS (Frames Per Second) or clip specific time ranges.</p>
                 <div class="range-slider-wrapper">
                   <input type="range" id="speed-slider" min="0.25" max="3" value="1" step="0.05" class="slider">
                   <div class="slider-labels">
@@ -177,16 +279,10 @@
                     <span>3.0x</span>
                   </div>
                 </div>
+                <button type="button" class="btn btn-outline btn-full mt-3" disabled>Apply Speed Adjust (Next Phase)</button>
               </div>
-
-              <!-- Action Buttons -->
-              <div class="action-buttons-group">
-                <button type="button" class="btn btn-success btn-lg btn-full" id="btn-export">
-                  <i class="fa-solid fa-download btn-icon animate-pulse"></i>Process & Download GIF
-                </button>
-              </div>
-
             </div>
+            
           </div>
         </div>
 
@@ -195,12 +291,24 @@
 
   </main>
 
+  <!-- Processing Loader Overlay -->
+  <div id="processing-loader" class="loader-hidden">
+    <div class="loader-content">
+      <div class="spinner"></div>
+      <h3 id="loader-title">Processing GIF...</h3>
+      <p id="loader-subtitle">Decoding frames and applying transformations.</p>
+      <div class="progress-bar-container">
+        <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Notification Toast -->
   <div id="toast-notification" class="toast-hidden">
     <i class="fa-solid fa-triangle-exclamation toast-icon"></i>
     <span id="toast-message">Notification message</span>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
