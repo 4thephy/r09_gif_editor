@@ -755,7 +755,7 @@ body {
 /* --- Phase 2: Editor Tools Grid and Tabs --- */
 .editor-tools-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   background-color: rgba(10, 15, 26, 0.4);
   border-bottom: 1px solid var(--border-color);
 }
@@ -764,7 +764,7 @@ body {
   background: transparent;
   border: none;
   border-right: 1px solid var(--border-color);
-  border-bottom: 2px solid transparent;
+  border-bottom: 1px solid var(--border-color);
   color: var(--text-secondary);
   padding: 0.9rem 0.5rem;
   display: flex;
@@ -778,7 +778,7 @@ body {
   font-weight: 500;
 }
 
-.tool-tab-btn:nth-child(4n) {
+.tool-tab-btn:nth-child(3n) {
   border-right: none;
 }
 
@@ -795,7 +795,7 @@ body {
 .tool-tab-btn.active {
   background-color: rgba(59, 130, 246, 0.08);
   color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  border-bottom: 2px solid var(--color-primary);
 }
 
 .tool-tab-btn.active i {

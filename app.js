@@ -21,21 +21,52 @@ document.addEventListener('DOMContentLoaded', () => {
   const metaDimensions = document.getElementById('meta-dimensions');
   
   // Controls
+  // 1. Resize Controls
   const resizeWidth = document.getElementById('resize-width');
   const resizeHeight = document.getElementById('resize-height');
   const keepAspect = document.getElementById('keep-aspect-ratio');
   const btnApplyResize = document.getElementById('btn-apply-resize');
   
+  // 2. Crop Controls
   const cropXInput = document.getElementById('crop-x');
   const cropYInput = document.getElementById('crop-y');
   const cropWInput = document.getElementById('crop-w');
   const cropHInput = document.getElementById('crop-h');
   const btnApplyCrop = document.getElementById('btn-apply-crop');
   
+  // 3. Downsize Controls
   const scaleSlider = document.getElementById('scale-slider');
   const scaleVal = document.getElementById('scale-val');
+  const btnApplyDownsize = document.getElementById('btn-apply-downsize');
+  
+  // 4. Convert Controls
+  const btnApplyConvert = document.getElementById('btn-apply-convert');
+  const convertFormat = document.getElementById('convert-format');
+  
+  // 5. Rotate Controls
+  const rotateAngleSelect = document.getElementById('rotate-angle');
+  const flipHorizontalInput = document.getElementById('flip-horizontal');
+  const flipVerticalInput = document.getElementById('flip-vertical');
+  const btnApplyRotate = document.getElementById('btn-apply-rotate');
+  
+  // 6. Optimize Controls
+  const optimizeQualitySelect = document.getElementById('optimize-quality');
+  const optimizeFpsSelect = document.getElementById('optimize-fps');
+  const btnApplyOptimize = document.getElementById('btn-apply-optimize');
+  
+  // 7. Reverse Controls
+  const btnApplyReverse = document.getElementById('btn-apply-reverse');
+  
+  // 8. Speed Controls
   const speedSlider = document.getElementById('speed-slider');
   const speedVal = document.getElementById('speed-val');
+  const btnApplySpeed = document.getElementById('btn-apply-speed');
+  
+  // 9. Cut Controls
+  const cutStartInput = document.getElementById('cut-start');
+  const cutEndInput = document.getElementById('cut-end');
+  const cutFramesCountLabel = document.getElementById('cut-frames-count-label');
+  const btnApplyCut = document.getElementById('btn-apply-cut');
   
   // Toast
   const toast = document.getElementById('toast-notification');
@@ -54,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let originalWidth = 0;
   let originalHeight = 0;
   let aspectRatio = 1;
+  let totalFramesCount = 0;
   
   let cropState = { x: 0, y: 0, w: 0, h: 0 };
   
@@ -83,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('processing-loader').className = 'loader-hidden';
   }
 
-  // 3. Tab Switching Logic
+  // 3. Tab Switching Logic (9 Tools)
   tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetId = btn.dataset.target;
@@ -99,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Show/Hide crop overlay dynamically
       if (targetId === 'panel-crop') {
         cropOverlay.classList.remove('crop-overlay-hidden');
-        setTimeout(updateCropOverlayBounds, 50); // small delay to ensure rendering completes
+        setTimeout(updateCropOverlayBounds, 50);
       } else {
         cropOverlay.classList.add('crop-overlay-hidden');
       }
@@ -168,6 +200,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const reader = new FileReader();
     reader.onload = function(e) {
       gifArrayBuffer = e.target.result;
+      
+      try {
+        const parsed = parseGIF(gifArrayBuffer);
+        const decompressed = decompressFrames(parsed, true);
+        totalFramesCount = decompressed.length;
+        
+        // Setup trim frame bounds dynamically
+        cutFramesCountLabel.textContent = `Trim the GIF by choosing the starting and ending frames (Total Frames: ${totalFramesCount}):`;
+        cutStartInput.value = 1;
+        cutStartInput.max = totalFramesCount;
+        cutEndInput.value = totalFramesCount;
+        cutEndInput.max = totalFramesCount;
+      } catch (err) {
+        console.error('Failed to parse frame count:', err);
+      }
     };
     reader.readAsArrayBuffer(file);
     
@@ -230,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
 
-  // 7. Choose Another File / Reset Workflow
+  // 7. Choose Another File / Reset Workspace
   btnChangeFile.addEventListener('click', () => {
     // Reset file inputs and buffers
     fileInput.value = '';
@@ -238,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     gifArrayBuffer = null;
     processedGifDataUrl = null;
     btnDownloadTop.disabled = true;
+    totalFramesCount = 0;
     
     if (objectUrl) {
       URL.revokeObjectURL(objectUrl);
@@ -254,10 +302,18 @@ document.addEventListener('DOMContentLoaded', () => {
     cropWInput.value = '';
     cropHInput.value = '';
     
-    scaleSlider.value = 100;
-    scaleVal.textContent = '100%';
+    scaleSlider.value = 75;
+    scaleVal.textContent = '75%';
     speedSlider.value = 1;
     speedVal.textContent = '1.0x (Original)';
+    
+    rotateAngleSelect.value = '0';
+    flipHorizontalInput.checked = false;
+    flipVerticalInput.checked = false;
+    optimizeQualitySelect.value = '10';
+    optimizeFpsSelect.value = '1';
+    cutStartInput.value = '';
+    cutEndInput.value = '';
     
     cropOverlay.classList.add('crop-overlay-hidden');
     
@@ -293,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 9. Downscale/Speed sliders live update (placeholders)
+  // 9. Downscale/Speed sliders live update
   scaleSlider.addEventListener('input', (e) => {
     scaleVal.textContent = `${e.target.value}%`;
   });
@@ -336,7 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
     cropBoxSize.textContent = `${Math.round(cropState.w)} x ${Math.round(cropState.h)}`;
   }
 
-  // Trigger update on image load and window resizing
   gifPreview.addEventListener('load', updateCropOverlayBounds);
   window.addEventListener('resize', updateCropOverlayBounds);
 
@@ -477,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inp.addEventListener('input', updateFromInputs);
   });
 
-  // 11. GIF frame-by-frame processing core engine
+  // 11. GIF Processing Engine (all 9 actions)
   function dataURIToArrayBuffer(dataURI) {
     const byteString = atob(dataURI.split(',')[1]);
     const ab = new ArrayBuffer(byteString.length);
@@ -497,40 +552,102 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       showLoader('Decoding GIF...', 'Reading and parsing file structure.');
       
-      // Parse GIF raw buffer using gifuct-js
       const parsedGif = parseGIF(gifArrayBuffer);
-      const frames = decompressFrames(parsedGif, true);
+      let frames = decompressFrames(parsedGif, true);
       
       if (!frames || frames.length === 0) {
         throw new Error('No animation frames found in the GIF.');
       }
       
-      let targetW, targetH;
-      let cX = 0, cY = 0, cW = originalWidth, cH = originalHeight;
+      // Calculate average delay
+      let avgDelay = 100;
+      const delaySum = frames.reduce((acc, f) => acc + (f.delay || 100), 0);
+      avgDelay = delaySum / frames.length;
 
+      // Handle variables for transformations
+      let targetW = originalWidth;
+      let targetH = originalHeight;
+      let sampleInt = 10;
+      
+      let cX = 0, cY = 0, cW = originalWidth, cH = originalHeight; // crop coords
+      let scalePct = 100; // downsize percentage
+      let rotAngle = 0; // rotate angle
+      let flipH = false, flipV = false; // flip states
+      let skipFramesRate = 1; // frame skip optimizer
+      let speedMult = 1; // speed factor
+      let cutStart = 1, cutEnd = frames.length; // cut boundaries
+
+      // 1. Resize Action
       if (action === 'resize') {
         targetW = parseInt(resizeWidth.value) || originalWidth;
         targetH = parseInt(resizeHeight.value) || originalHeight;
-        if (targetW <= 0 || targetH <= 0) {
-          throw new Error('Width and Height must be positive numbers.');
-        }
-      } else if (action === 'crop') {
+      }
+      // 2. Crop Action
+      else if (action === 'crop') {
         cX = parseInt(cropXInput.value) || 0;
         cY = parseInt(cropYInput.value) || 0;
         cW = parseInt(cropWInput.value) || originalWidth;
         cH = parseInt(cropHInput.value) || originalHeight;
-        
-        if (cW <= 0 || cH <= 0) {
-          throw new Error('Crop Width and Height must be positive numbers.');
-        }
         targetW = cW;
         targetH = cH;
       }
+      // 3. Downsize Action
+      else if (action === 'downsize') {
+        scalePct = parseInt(scaleSlider.value) || 75;
+        targetW = Math.round(originalWidth * (scalePct / 100));
+        targetH = Math.round(originalHeight * (scalePct / 100));
+      }
+      // 4. Rotate Action
+      else if (action === 'rotate') {
+        rotAngle = parseInt(rotateAngleSelect.value) || 0;
+        flipH = flipHorizontalInput.checked;
+        flipV = flipVerticalInput.checked;
+        if (rotAngle === 90 || rotAngle === 270) {
+          targetW = originalHeight;
+          targetH = originalWidth;
+        }
+      }
+      // 5. Optimize Action
+      else if (action === 'optimize') {
+        sampleInt = parseInt(optimizeQualitySelect.value) || 10;
+        skipFramesRate = parseInt(optimizeFpsSelect.value) || 1;
+        // Frame skipping filter
+        if (skipFramesRate > 1) {
+          frames = frames.filter((_, idx) => idx % skipFramesRate === 0);
+          avgDelay = avgDelay * skipFramesRate; // keep animation overall speed realistic
+        }
+      }
+      // 6. Reverse Action
+      else if (action === 'reverse') {
+        frames.reverse();
+      }
+      // 7. Speed Action
+      else if (action === 'speed') {
+        speedMult = parseFloat(speedSlider.value) || 1.0;
+        avgDelay = avgDelay / speedMult;
+      }
+      // 8. Cut Action
+      else if (action === 'cut') {
+        cutStart = parseInt(cutStartInput.value) || 1;
+        cutEnd = parseInt(cutEndInput.value) || frames.length;
+        
+        // Bounds checking
+        cutStart = Math.max(1, Math.min(frames.length, cutStart));
+        cutEnd = Math.max(cutStart, Math.min(frames.length, cutEnd));
+        
+        frames = frames.slice(cutStart - 1, cutEnd);
+      }
 
+      // Convert WebM recording starts here!
+      if (action === 'convert') {
+        convertGifToWebM(frames, avgDelay);
+        return;
+      }
+
+      // Frame rendering queue
       const processedImages = [];
       let i = 0;
       
-      // Create accumulated canvas of original size to accumulate frames sequentially
       const accumCanvas = document.createElement('canvas');
       accumCanvas.width = originalWidth;
       accumCanvas.height = originalHeight;
@@ -538,42 +655,38 @@ document.addEventListener('DOMContentLoaded', () => {
       
       function renderFrame() {
         if (i >= frames.length) {
-          // Re-encoding phase using gifshot
           showLoader('Encoding GIF...', 'Compiling frames. Please wait...');
-          
-          let avgDelay = 100;
-          const sum = frames.reduce((acc, f) => acc + (f.delay || 100), 0);
-          avgDelay = sum / frames.length;
           
           gifshot.createGIF({
             images: processedImages,
             gifWidth: targetW,
             gifHeight: targetH,
             interval: avgDelay / 1000,
+            sampleInterval: sampleInt,
             numWorkers: 2
           }, function(obj) {
             if (!obj.error) {
               processedGifDataUrl = obj.image;
               gifPreview.src = processedGifDataUrl;
               
-              // Cache buffer for next sequential operation
+              // Cache buffer
               gifArrayBuffer = dataURIToArrayBuffer(processedGifDataUrl);
               
-              // Update state sizes
+              // Update sizes
               originalWidth = targetW;
               originalHeight = targetH;
               aspectRatio = originalWidth / originalHeight;
+              totalFramesCount = frames.length;
               
-              // Reset dimensions texts
               metaDimensions.textContent = `${originalWidth} x ${originalHeight} px`;
               
-              // Calculate size of generated base64
+              // Calculate size
               const base64Len = processedGifDataUrl.length - (processedGifDataUrl.indexOf(',') + 1);
               const padding = (processedGifDataUrl.endsWith('==')) ? 2 : (processedGifDataUrl.endsWith('=') ? 1 : 0);
-              const calculatedBytes = (base64Len * 0.75) - padding;
-              metaFilesize.textContent = formatBytes(calculatedBytes);
+              const bytes = (base64Len * 0.75) - padding;
+              metaFilesize.textContent = formatBytes(bytes);
               
-              // Reset edit input values
+              // Reset values
               resizeWidth.value = originalWidth;
               resizeHeight.value = originalHeight;
               
@@ -583,7 +696,12 @@ document.addEventListener('DOMContentLoaded', () => {
               cropHInput.value = originalHeight;
               cropState = { x: 0, y: 0, w: originalWidth, h: originalHeight };
               
-              // Enable download top button
+              cutFramesCountLabel.textContent = `Trim the GIF by choosing the starting and ending frames (Total Frames: ${totalFramesCount}):`;
+              cutStartInput.value = 1;
+              cutStartInput.max = totalFramesCount;
+              cutEndInput.value = totalFramesCount;
+              cutEndInput.max = totalFramesCount;
+              
               btnDownloadTop.disabled = false;
               
               hideLoader();
@@ -597,20 +715,18 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Render current frame
         const frame = frames[i];
         
-        // Update loader progress bar
+        // Progress update
         const percent = Math.round((i / frames.length) * 100);
         showLoader('Processing frames...', `Rendering frame ${i + 1} of ${frames.length}`);
         updateLoaderProgress(percent);
         
-        // Handle disposal method 2 (clear previous frame patch area before drawing)
+        // disposalType 2 handling
         if (i > 0 && frames[i-1].disposalType === 2) {
           accumCtx.clearRect(frames[i-1].dims.left, frames[i-1].dims.top, frames[i-1].dims.width, frames[i-1].dims.height);
         }
         
-        // Render current frame patch onto a temporary canvas
         const patchCanvas = document.createElement('canvas');
         patchCanvas.width = frame.dims.width;
         patchCanvas.height = frame.dims.height;
@@ -619,10 +735,9 @@ document.addEventListener('DOMContentLoaded', () => {
         patchImgData.data.set(frame.patch);
         patchCtx.putImageData(patchImgData, 0, 0);
         
-        // Draw patch at the designated top/left offset
         accumCtx.drawImage(patchCanvas, frame.dims.left, frame.dims.top);
         
-        // Create target canvas representing the transformed (cropped or resized) frame
+        // Create canvas of output size
         const targetCanvas = document.createElement('canvas');
         targetCanvas.width = targetW;
         targetCanvas.height = targetH;
@@ -632,6 +747,19 @@ document.addEventListener('DOMContentLoaded', () => {
           targetCtx.drawImage(accumCanvas, 0, 0, originalWidth, originalHeight, 0, 0, targetW, targetH);
         } else if (action === 'crop') {
           targetCtx.drawImage(accumCanvas, cX, cY, cW, cH, 0, 0, targetW, targetH);
+        } else if (action === 'downsize') {
+          targetCtx.drawImage(accumCanvas, 0, 0, originalWidth, originalHeight, 0, 0, targetW, targetH);
+        } else if (action === 'rotate') {
+          targetCtx.translate(targetW / 2, targetH / 2);
+          targetCtx.rotate(rotAngle * Math.PI / 180);
+          
+          if (flipH) targetCtx.scale(-1, 1);
+          if (flipV) targetCtx.scale(1, -1);
+          
+          targetCtx.drawImage(accumCanvas, -originalWidth / 2, -originalHeight / 2);
+        } else {
+          // speed, reverse, optimize, cut without geometric transformations
+          targetCtx.drawImage(accumCanvas, 0, 0);
         }
         
         processedImages.push(targetCanvas.toDataURL('image/png'));
@@ -648,16 +776,120 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Bind edit action button clicks
-  btnApplyResize.addEventListener('click', () => {
-    processGif('resize');
-  });
+  // 12. Convert to WebM Helper using Canvas stream recorder
+  function convertGifToWebM(frames, avgDelay) {
+    try {
+      showLoader('Preparing Stream...', 'Initializing recording layout.');
+      
+      const recordCanvas = document.createElement('canvas');
+      recordCanvas.width = originalWidth;
+      recordCanvas.height = originalHeight;
+      const recordCtx = recordCanvas.getContext('2d');
+      
+      // Determine format options
+      let options = {};
+      const mimeTypes = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm'
+      ];
+      for (const mime of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mime)) {
+          options = { mimeType: mime };
+          break;
+        }
+      }
+      
+      const stream = recordCanvas.captureStream(1000 / avgDelay);
+      const recorder = new MediaRecorder(stream, options);
+      const chunks = [];
+      
+      recorder.ondataavailable = e => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+      
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const videoUrl = URL.createObjectURL(blob);
+        
+        // Trigger browser download
+        const filename = currentFile ? currentFile.name.replace('.gif', '.webm') : 'animation.webm';
+        const link = document.createElement('a');
+        link.href = videoUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        hideLoader();
+        showToast('Converted & Downloaded WebM video successfully!');
+      };
+      
+      recorder.start();
+      
+      let frameIdx = 0;
+      const accumCanvas = document.createElement('canvas');
+      accumCanvas.width = originalWidth;
+      accumCanvas.height = originalHeight;
+      const accumCtx = accumCanvas.getContext('2d');
+      
+      function drawFrame() {
+        if (frameIdx >= frames.length) {
+          setTimeout(() => {
+            recorder.stop();
+          }, 300); // safety buffer
+          return;
+        }
+        
+        const frame = frames[frameIdx];
+        
+        // Progress overlay
+        const pct = Math.round((frameIdx / frames.length) * 100);
+        showLoader('Converting to WebM...', `Recording frame ${frameIdx + 1} of ${frames.length}`);
+        updateLoaderProgress(pct);
+        
+        if (frameIdx > 0 && frames[frameIdx-1].disposalType === 2) {
+          accumCtx.clearRect(frames[frameIdx-1].dims.left, frames[frameIdx-1].dims.top, frames[frameIdx-1].dims.width, frames[frameIdx-1].dims.height);
+        }
+        
+        const tempC = document.createElement('canvas');
+        tempC.width = frame.dims.width;
+        tempC.height = frame.dims.height;
+        const tempCtx = tempC.getContext('2d');
+        const imgD = tempCtx.createImageData(frame.dims.width, frame.dims.height);
+        imgD.data.set(frame.patch);
+        tempCtx.putImageData(imgD, 0, 0);
+        
+        accumCtx.drawImage(tempC, frame.dims.left, frame.dims.top);
+        
+        // Render on canvas recorder
+        recordCtx.clearRect(0, 0, originalWidth, originalHeight);
+        recordCtx.drawImage(accumCanvas, 0, 0);
+        
+        frameIdx++;
+        setTimeout(drawFrame, frame.delay || 100);
+      }
+      
+      drawFrame();
+      
+    } catch (err) {
+      hideLoader();
+      showToast('Conversion failed: ' + err.message);
+    }
+  }
 
-  btnApplyCrop.addEventListener('click', () => {
-    processGif('crop');
-  });
+  // Event bindings for all 9 edit actions
+  btnApplyResize.addEventListener('click', () => processGif('resize'));
+  btnApplyCrop.addEventListener('click', () => processGif('crop'));
+  btnApplyDownsize.addEventListener('click', () => processGif('downsize'));
+  btnApplyConvert.addEventListener('click', () => processGif('convert'));
+  btnApplyRotate.addEventListener('click', () => processGif('rotate'));
+  btnApplyOptimize.addEventListener('click', () => processGif('optimize'));
+  btnApplyReverse.addEventListener('click', () => processGif('reverse'));
+  btnApplySpeed.addEventListener('click', () => processGif('speed'));
+  btnApplyCut.addEventListener('click', () => processGif('cut'));
 
-  // 12. Top Download Button Action
+  // 13. Top Download Button Action
   btnDownloadTop.addEventListener('click', () => {
     if (!processedGifDataUrl) return;
     
